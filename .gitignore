@@ -21,8 +21,8 @@ docker-data/
 /config/frigate.db
 /config/*.log
 /config/snapshots/
-config/frigate.db-shm
-config/frigate.db-wal
+/config/frigate.db-shm
+/config/frigate.db-wal
 # Exclude downloaded clips or archived video
 /media/frigate/
 # If you use recordings storage on local disk, ignore it:
@@ -52,3 +52,4 @@ ehthumbs.db
 *.swp
 *.swo
 *.DS_Store
+config/frigate.db*

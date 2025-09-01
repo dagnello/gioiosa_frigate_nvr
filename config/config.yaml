@@ -1,37 +1,101 @@
 version: 0.16-0
 
 mqtt:
-  enabled: false  # not using HA/MQTT; avoid connection spam
+  # Optional: Enable mqtt server
+  enabled: False
 
+# --- Object detector (CPU) ---
 detectors:
   cpu1:
-    type: cpu      # Windows + Docker, no GPU passthrough
+    type: cpu
 
+# --- ffmpeg defaults (good for Hikvision/RTSP over TCP) ---
+ffmpeg:
+  input_args: preset-rtsp-generic
+  output_args:
+    detect: -threads 2 -f rawvideo -pix_fmt yuv420p
+    record: preset-record-generic
+  apple_compatibility: false
+
+# --- GLOBAL: Only keep detection/alert clips; don't retain rolling buffer ---
 record:
   enabled: true
+  expire_interval: 60
+  sync_recordings: true
   retain:
-    days: 1
-    mode: motion   # motion-only segments (no 24/7)
+    days: 0          # <-- do NOT keep the rolling /media/recordings segments
+    mode: all        # (irrelevant since days=0, but fine to leave)
 
+  # Keep short MP4s around detections (object-based motion)
+  detections:
+    pre_capture: 5
+    post_capture: 15
+    retain:
+      days: 7        # how long to keep detection clips
+
+  # If you ever use "alerts" (e.g., zones), they get their own retention
+  alerts:
+    pre_capture: 5
+    post_capture: 15
+    retain:
+      days: 7
+      mode: motion
+
+# --- GLOBAL: Snapshots tied to detections (JPG only, smaller) ---
 snapshots:
   enabled: true
+  clean_copy: false      # <-- disable PNG “clean” copy (saves lots of space)
   timestamp: true
   bounding_box: true
+  crop: false
+  quality: 100            # reduce size further
   retain:
     default: 7
 
+# --- GLOBAL: Object tracking (what we care about) ---
+objects:
+  track:
+    - person
+    - car
+    - bicycle
+
+# --- GLOBAL: Review rules that decide what counts as a detection/alert to keep ---
+review:
+  detections:
+    enabled: true
+    labels: [person, car, bicycle]   # <-- only these become “detections” (and get clips)
+  alerts:
+    enabled: true
+    labels: [person, car, bicycle]
+
+# --- GLOBAL: detection tuning (kept modest; can override per camera) ---
+detect:
+  enabled: true
+  fps: 5                  # <= keep detector happy on CPU
+  stationary:
+    # Re-confirm every 15 frames (~3/s at 5fps)
+    interval: 10
+    # Consider object stationary after 75 frames (~15s at 5fps)
+    threshold: 50
+    # Limit track length (frames) for ONLY cars/bikes; omit "person" so it's unlimited
+    max_frames:
+      objects:
+        car: 150         # ~3 minutes at 5 fps
+        bicycle: 150     # ~3 minutes at 5 fps
+
+# ------------- CAMERAS -------------
 cameras:
   appartment_entrance:
     ffmpeg:
       inputs:
         - path: rtsp://localu:Messina1@192.168.1.6:554/Streaming/Channels/102
           roles: [detect, record]
-          input_args: preset-rtsp-generic  # TCP for Hikvision
+          input_args: preset-rtsp-generic
     detect:
       enabled: true
       width: 640
       height: 480
-      fps: 15            # reduce CPU and silence warning
+      fps: 5
     motion:
       enabled: true
     objects:
@@ -47,7 +111,7 @@ cameras:
       enabled: true
       width: 640
       height: 480
-      fps: 15
+      fps: 5
     motion:
       enabled: true
     objects:
@@ -63,7 +127,7 @@ cameras:
       enabled: true
       width: 640
       height: 480
-      fps: 15
+      fps: 5
     motion:
       enabled: true
     objects:
@@ -79,7 +143,7 @@ cameras:
       enabled: true
       width: 640
       height: 480
-      fps: 15
+      fps: 5
     motion:
       enabled: true
     objects:
@@ -95,7 +159,7 @@ cameras:
       enabled: true
       width: 640
       height: 480
-      fps: 15
+      fps: 5
     motion:
       enabled: true
     objects:
@@ -111,7 +175,7 @@ cameras:
       enabled: true
       width: 640
       height: 480
-      fps: 15
+      fps: 5
     motion:
       enabled: true
     objects:
@@ -127,7 +191,7 @@ cameras:
       enabled: true
       width: 640
       height: 480
-      fps: 15
+      fps: 5
     motion:
       enabled: true
     objects:
@@ -143,11 +207,8 @@ cameras:
       enabled: true
       width: 640
       height: 480
-      fps: 15
+      fps: 5
     motion:
       enabled: true
     objects:
       track: [person, car, bicycle]
-
-detect:
-  enabled: true
