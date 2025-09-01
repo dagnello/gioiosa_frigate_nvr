@@ -1,0 +1,153 @@
+version: 0.16-0
+
+mqtt:
+  enabled: false  # not using HA/MQTT; avoid connection spam
+
+detectors:
+  cpu1:
+    type: cpu      # Windows + Docker, no GPU passthrough
+
+record:
+  enabled: true
+  retain:
+    days: 1
+    mode: motion   # motion-only segments (no 24/7)
+
+snapshots:
+  enabled: true
+  timestamp: true
+  bounding_box: true
+  retain:
+    default: 7
+
+cameras:
+  appartment_entrance:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:Messina1@192.168.1.6:554/Streaming/Channels/102
+          roles: [detect, record]
+          input_args: preset-rtsp-generic  # TCP for Hikvision
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 15            # reduce CPU and silence warning
+    motion:
+      enabled: true
+    objects:
+      track: [person, car, bicycle]
+
+  appartment_balcony:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:Messina1@192.168.1.6:554/Streaming/Channels/202
+          roles: [detect, record]
+          input_args: preset-rtsp-generic
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 15
+    motion:
+      enabled: true
+    objects:
+      track: [person, car, bicycle]
+
+  house_entrance:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:Messina1@192.168.1.7:554/Streaming/Channels/102
+          roles: [detect, record]
+          input_args: preset-rtsp-generic
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 15
+    motion:
+      enabled: true
+    objects:
+      track: [person, car, bicycle]
+
+  house_balcony:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:Messina1@192.168.1.7:554/Streaming/Channels/202
+          roles: [detect, record]
+          input_args: preset-rtsp-generic
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 15
+    motion:
+      enabled: true
+    objects:
+      track: [person, car, bicycle]
+
+  house_cava:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:Messina1@192.168.1.7:554/Streaming/Channels/302
+          roles: [detect, record]
+          input_args: preset-rtsp-generic
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 15
+    motion:
+      enabled: true
+    objects:
+      track: [person, car, bicycle]
+
+  appartment_garage:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:Messina1@192.168.1.7:554/Streaming/Channels/402
+          roles: [detect, record]
+          input_args: preset-rtsp-generic
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 15
+    motion:
+      enabled: true
+    objects:
+      track: [person, car, bicycle]
+
+  house_shower_cava:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:Messina1@192.168.1.7:554/Streaming/Channels/502
+          roles: [detect, record]
+          input_args: preset-rtsp-generic
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 15
+    motion:
+      enabled: true
+    objects:
+      track: [person, car, bicycle]
+
+  house_road_store:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:Messina1@192.168.1.7:554/Streaming/Channels/602
+          roles: [detect, record]
+          input_args: preset-rtsp-generic
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 15
+    motion:
+      enabled: true
+    objects:
+      track: [person, car, bicycle]
+
+detect:
+  enabled: true

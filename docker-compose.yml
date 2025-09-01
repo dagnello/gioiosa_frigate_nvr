@@ -1,0 +1,51 @@
+# version: "3.9"
+services:
+  frigate:
+    container_name: frigate
+    image: ghcr.io/blakeblackshear/frigate:stable
+    restart: unless-stopped
+    privileged: true
+    shm_size: "256mb"
+    # HW accel is optional; comment "devices" if not using Intel/AMD iGPU
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    volumes:
+      - ./config:/config
+      - ./media:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    ports:
+      - "5000:5000"   # Frigate UI http://localhost:5000
+      - "8554:8554"   # RTSP (optional)
+      - "8555:8555/tcp"
+      - "8555:8555/udp"
+    environment:
+      FRIGATE_RTSP_PASSWORD: "password"
+
+  # rclone_s3_sync:
+  #   container_name: rclone_s3_sync
+  #   image: rclone/rclone:latest
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - frigate
+  #   environment:
+  #     # Optional: speed up S3; not required
+  #     RCLONE_CONFIG_PASS: ""
+  #   volumes:
+  #     - ./media:/media/frigate:ro
+  #     - ./rclone/rclone.conf:/config/rclone/rclone.conf:ro
+  #   command: >
+  #     bash -c "
+  #     while true; do
+  #       rclone sync
+  #         /media/frigate
+  #         s3frigate:my-hikvision-bucket/frigate
+  #         --transfers=4 --checkers=8
+  #         --s3-no-check-bucket
+  #         --use-server-modtime
+  #         --fast-list
+  #       && sleep 60 || sleep 60;
+  #     done
+  #     "

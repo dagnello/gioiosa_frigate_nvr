@@ -1,0 +1,58 @@
+detectors:
+  cpu1:
+    type: cpu
+
+# keep short local retention and rely on S3 sync
+record:
+  enabled: true
+  retain:
+    days: 1
+    mode: motion   # record when motion/objects are detected
+
+snapshots:
+  enabled: true
+  timestamp: true
+  bounding_box: true
+  retain:
+    default: 7
+
+cameras:
+  ch1_balcony:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:gioiosa@192.168.1.6:554/Streaming/Channels/101
+          roles: [detect, record]
+          # For stubborn H.265 streams you can add input args:
+          # input_args: preset-rtsp-restream
+    detect:
+      enabled: true
+      # Set to your actual stream resolution for best detection performance
+      width: 2688
+      height: 1520
+    motion:
+      enabled: true
+    objects:
+      track:
+        - person
+        - car
+        - truck
+        - bicycle
+
+  # Example second camera (channel 2 main stream):
+  ch2_driveway:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localu:gioiosa@192.168.1.6:554/Streaming/Channels/201
+          roles: [detect, record]
+    detect:
+      enabled: true
+      width: 2688
+      height: 1520
+    motion:
+      enabled: true
+    objects:
+      track:
+        - person
+        - car
+        - truck
+        - bicycle
