@@ -24,28 +24,58 @@ services:
     environment:
       FRIGATE_RTSP_PASSWORD: "password"
 
-  # rclone_s3_sync:
-  #   container_name: rclone_s3_sync
-  #   image: rclone/rclone:latest
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - frigate
-  #   environment:
-  #     # Optional: speed up S3; not required
-  #     RCLONE_CONFIG_PASS: ""
-  #   volumes:
-  #     - ./media:/media/frigate:ro
-  #     - ./rclone/rclone.conf:/config/rclone/rclone.conf:ro
-  #   command: >
-  #     bash -c "
-  #     while true; do
-  #       rclone sync
-  #         /media/frigate
-  #         s3frigate:my-hikvision-bucket/frigate
-  #         --transfers=4 --checkers=8
-  #         --s3-no-check-bucket
-  #         --use-server-modtime
-  #         --fast-list
-  #       && sleep 60 || sleep 60;
-  #     done
-  #     "
+  sqlite-backup:
+    image: nouchka/sqlite3:latest
+    container_name: sqlite-backup
+    restart: unless-stopped
+    entrypoint: ["sleep","infinity"]
+    volumes:
+      - ./config:/config
+    labels:
+      ofelia.enabled: "true"
+
+  rclone-runner:
+    image: rclone/rclone:latest
+    container_name: rclone-runner
+    restart: unless-stopped
+    entrypoint: ["sleep","infinity"]
+    environment:
+      # Optional but useful defaults:
+      RCLONE_S3_ACL: "private"
+      RCLONE_S3_NO_CHECK_BUCKET: "true"
+    volumes:
+      - ./config:/config:ro
+      - ./media:/media/frigate:ro
+    labels:
+      ofelia.enabled: "true"
+
+  ofelia:
+    image: mcuadros/ofelia:latest
+    container_name: ofelia
+    restart: unless-stopped
+    command: daemon --docker
+    depends_on:
+      - rclone-runner
+      - sqlite-backup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      ofelia.enabled: "true"
+
+      # --- DB snapshot every minute (safe, consistent backup of the live sqlite) ---
+      ofelia.job-exec.dbbackup.schedule: "@every 1m"
+      ofelia.job-exec.dbbackup.container: "sqlite-backup"
+      ofelia.job-exec.dbbackup.user: "0"
+      ofelia.job-exec.dbbackup.command: "sh -lc 'mkdir -p /config/db-backups && sqlite3 /config/frigate.db \".backup /config/db-backups/frigate-$(date +%Y%m%d-%H%M%S).db\" && echo dbbackup: wrote $(ls -1 /config/db-backups | tail -1)'"
+
+      # --- CONFIG copy every minute (include snapshots, exclude *live* DB files), with one-line stats ---
+      ofelia.job-exec.config.schedule: "@every 1m"
+      ofelia.job-exec.config.container: "rclone-runner"
+      ofelia.job-exec.config.user: "0"
+      ofelia.job-exec.config.command: "rclone copy /config :s3,provider=AWS,env_auth=true,region=eu-west-3,no_check_bucket=true:gioiosa-security/frigate/config-backups --fast-list --no-traverse --transfers 2 --checkers 4 --include \"/db-backups/**\" --exclude \"/frigate.db\" --exclude \"/frigate.db-shm\" --exclude \"/frigate.db-wal\" --stats-one-line --stats 0 -v"
+
+      # --- MEDIA copy every minute, with one-line stats ---
+      ofelia.job-exec.media.schedule: "@every 1m"
+      ofelia.job-exec.media.container: "rclone-runner"
+      ofelia.job-exec.media.user: "0"
+      ofelia.job-exec.media.command: "rclone copy /media/frigate :s3,provider=AWS,env_auth=true,region=eu-west-3,no_check_bucket=true:gioiosa-security/frigate/media-backups --fast-list --no-traverse --transfers 4 --checkers 8 --stats-one-line --stats 0 -v"

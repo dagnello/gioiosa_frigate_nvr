@@ -14,6 +14,7 @@ docker-data/
 **/cache/
 **/clips/
 **/media/
+*.env.*
 
 # Frigate specific
 /config/config.yml.backup
@@ -23,6 +24,7 @@ docker-data/
 /config/snapshots/
 /config/frigate.db-shm
 /config/frigate.db-wal
+/config/db-backups/*
 # Exclude downloaded clips or archived video
 /media/frigate/
 # If you use recordings storage on local disk, ignore it:
@@ -35,6 +37,7 @@ __pycache__/
 *.pyo
 *.pyd
 *.pdb
+*.aws
 
 # Env files / secrets
 .env
