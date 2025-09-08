@@ -5,7 +5,12 @@ services:
     image: ghcr.io/blakeblackshear/frigate:stable
     restart: unless-stopped
     privileged: true
-    shm_size: "256mb"
+    cpus: "6.0"                 # its max CPU
+    cpu_shares: 2048            # > others => wins on contention
+    mem_limit: "6g"             # hard cap
+    mem_reservation: "3g"       # soft guarantee; scheduler favors it
+    oom_score_adj: -500         # less likely to be OOM-killed
+    shm_size: "512mb"           # ffmpeg headroom
     # HW accel is optional; comment "devices" if not using Intel/AMD iGPU
     devices:
       - /dev/dri/renderD128:/dev/dri/renderD128
@@ -29,6 +34,12 @@ services:
     container_name: sqlite-backup
     restart: unless-stopped
     entrypoint: ["sleep","infinity"]
+    cpus: "0.5"            # don’t let it burst too hard
+    cpu_shares: 32         # way lower than Frigate
+    mem_limit: "512m"
+    mem_reservation: "128m"
+    oom_score_adj: 300
+    # (Optional if supported in your WSL2 build)
     volumes:
       - ./config:/config
     labels:
@@ -39,6 +50,14 @@ services:
     container_name: rclone-runner
     restart: unless-stopped
     entrypoint: ["sleep","infinity"]
+    env_file:
+      - ./.env.secrets 
+    cpus: "1.0"            # don’t let it burst too hard
+    cpu_shares: 64         # way lower than Frigate
+    mem_limit: "512m"
+    mem_reservation: "128m"
+    oom_score_adj: 300
+    # (Optional if supported in your WSL2 build)
     environment:
       # Optional but useful defaults:
       RCLONE_S3_ACL: "private"
@@ -57,25 +76,33 @@ services:
     depends_on:
       - rclone-runner
       - sqlite-backup
+    cpus: "0.5"
+    cpu_shares: 32
+    mem_limit: "256m"
+    mem_reservation: "64m"
+    oom_score_adj: 500
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
       ofelia.enabled: "true"
 
-      # --- DB snapshot every minute (safe, consistent backup of the live sqlite) ---
-      ofelia.job-exec.dbbackup.schedule: "@every 1m"
+            # --- DB snapshot ---
+      ofelia.job-exec.dbbackup.schedule: "5 * * * * *"
+      ofelia.job-exec.dbbackup.no-overlap: "true"
       ofelia.job-exec.dbbackup.container: "sqlite-backup"
       ofelia.job-exec.dbbackup.user: "0"
-      ofelia.job-exec.dbbackup.command: "sh -lc 'mkdir -p /config/db-backups && sqlite3 /config/frigate.db \".backup /config/db-backups/frigate-$(date +%Y%m%d-%H%M%S).db\" && echo dbbackup: wrote $(ls -1 /config/db-backups | tail -1)'"
+      ofelia.job-exec.dbbackup.command: "sh -lc '/config/scripts/db-backup.sh'"
 
-      # --- CONFIG copy every minute (include snapshots, exclude *live* DB files), with one-line stats ---
-      ofelia.job-exec.config.schedule: "@every 1m"
+      # --- CONFIG copy ---
+      ofelia.job-exec.config.schedule: "20 * * * * *"
+      ofelia.job-exec.config.no-overlap: "true"
       ofelia.job-exec.config.container: "rclone-runner"
       ofelia.job-exec.config.user: "0"
-      ofelia.job-exec.config.command: "rclone copy /config :s3,provider=AWS,env_auth=true,region=eu-west-3,no_check_bucket=true:gioiosa-security/frigate/config-backups --fast-list --no-traverse --transfers 2 --checkers 4 --include \"/db-backups/**\" --exclude \"/frigate.db\" --exclude \"/frigate.db-shm\" --exclude \"/frigate.db-wal\" --stats-one-line --stats 0 -v"
+      ofelia.job-exec.config.command: "sh -lc '/config/scripts/rclone-config.sh'"
 
-      # --- MEDIA copy every minute, with one-line stats ---
-      ofelia.job-exec.media.schedule: "@every 1m"
+      # --- MEDIA copy ---
+      ofelia.job-exec.media.schedule: "40 * * * * *"
+      ofelia.job-exec.media.no-overlap: "true"
       ofelia.job-exec.media.container: "rclone-runner"
       ofelia.job-exec.media.user: "0"
-      ofelia.job-exec.media.command: "rclone copy /media/frigate :s3,provider=AWS,env_auth=true,region=eu-west-3,no_check_bucket=true:gioiosa-security/frigate/media-backups --fast-list --no-traverse --transfers 4 --checkers 8 --stats-one-line --stats 0 -v"
+      ofelia.job-exec.media.command: "sh -lc '/config/scripts/rclone-media.sh'"
